@@ -31,8 +31,16 @@
  * Timing
  * ------------------------------------------------------------------------- */
 
-/** Half-period of the SWD clock in microseconds.  2 us → ~250 kHz. */
-#define SWD_HALF_PERIOD_US (2U)
+/**
+ * Half-period of the SWD clock in microseconds.
+ *
+ * furi_hal_gpio_init() (called on every direction switch in dio_input /
+ * dio_output) takes several microseconds of overhead.  A 2 µs half-period
+ * is therefore too aggressive — the actual waveform ends up much slower and
+ * asymmetric.  10 µs (~50 kHz) gives comfortable margin and is well within
+ * what the N32G031 debug port handles.
+ */
+#define SWD_HALF_PERIOD_US (10U)
 
 /* ---------------------------------------------------------------------------
  * DP register addresses  (A[3:2] field of the 8-bit request byte)
@@ -510,41 +518,60 @@ SWDAck swd_connect(void) {
 
     SWDAck result = SWD_ERR_NO_TARGET;
 
-    /* Try up to 3 times to get a valid IDCODE */
-    for(int attempt = 0; attempt < 3; attempt++) {
-        /* Step 1: Line reset */
+    /*
+     * Try 4 attempts, alternating between two connection sequences:
+     *
+     *   Even attempts (0, 2): pure SWD line reset only.
+     *     The N32G031 is SWD-only (no JTAG mux) and may come up in SWD mode
+     *     already, making the JTAG-to-SWD switch unnecessary or harmful.
+     *
+     *   Odd attempts (1, 3): full JTAG-to-SWD switch sequence.
+     *     Required if the debug port happens to be in JTAG mode.
+     *
+     * On failure we preserve the real ACK from swd_dp_read (rather than
+     * forcing SWD_ERR_NO_TARGET) so the caller can show a diagnostic code:
+     *   1 = OK (shouldn't reach here)
+     *   2 = WAIT  — target busy
+     *   4 = FAULT — target flagged error (stuck overrun?)
+     *   7 = all-ones → SWDIO still floating / no target driving the bus
+     *   0 = all-zeros → SWDIO stuck low (short / wrong pin)
+     */
+    for(int attempt = 0; attempt < 4; attempt++) {
+        /* Always start with a line reset to put the DP in reset state. */
         swd_line_reset();
 
-        /* Step 2: JTAG-to-SWD switch sequence */
-        swd_jtag_to_swd();
+        if(attempt & 1) {
+            /* Odd attempt: send JTAG-to-SWD switch, then another line reset. */
+            swd_jtag_to_swd();
+            swd_line_reset();
+        }
 
-        /* Step 3: Line reset again */
-        swd_line_reset();
+        /* 8 idle clocks LOW — gives the DP time to settle. */
+        swd_idle_cycles(8);
 
-        /* Step 4: 4 idle clocks LOW */
-        swd_idle_cycles(4);
-
-        /* Step 5: Read DP IDCODE */
+        /* Read DP IDCODE. */
         uint32_t idcode = 0;
         result = swd_dp_read(DP_REG_IDCODE, &idcode);
         if(result != SWD_ACK_OK) {
-            /* No response — retry */
+            /* Preserve the real ACK for diagnostics and retry. */
             continue;
         }
 
-        /* Validate: bit 0 of IDCODE must be 1 per ARM spec */
+        /* Validate: bit 0 of IDCODE must be 1 per ARM spec. */
         if((idcode & 1U) == 0) {
+            /* Got OK ACK but garbage data — treat as no target. */
             result = SWD_ERR_NO_TARGET;
             continue;
         }
 
-        /* Got a valid IDCODE — proceed with power-up */
+        /* Valid IDCODE — proceed with power-up. */
         result = SWD_ACK_OK;
         break;
     }
 
     if(result != SWD_ACK_OK) {
-        return (result == SWD_ACK_OK) ? SWD_ACK_OK : SWD_ERR_NO_TARGET;
+        /* Return the real last ACK so the UI can show a useful code. */
+        return result;
     }
 
     /* Step 6: Request system power-up and debug power-up */

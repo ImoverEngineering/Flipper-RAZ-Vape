@@ -222,20 +222,47 @@ static int32_t connect_worker(void* raw_ctx) {
     WorkerCtx* wctx = raw_ctx;
     AppCtx* app = wctx->app;
 
-    uint32_t idcode = 0;
-    bool found = n32_flash_identify(&idcode);
+    /*
+     * Call swd_connect() directly (rather than n32_flash_identify) so we can
+     * surface the raw ACK code in the error message for diagnosis:
+     *
+     *   0x08 = SWD_ERR_NO_TARGET  — IDCODE read got no valid response
+     *   0x10 = SWD_ERR_TIMEOUT    — power-up ACK timed out
+     *   0x02 = SWD_ACK_WAIT       — target is busy
+     *   0x04 = SWD_ACK_FAULT      — target flagged a fault
+     *   0x07                      — SWDIO floating (pull-up not reaching target)
+     *   0x00                      — SWDIO stuck low (short / wrong pin)
+     */
+    SWDAck result = swd_connect();
 
     furi_mutex_acquire(app->mutex, FuriWaitForever);
-    if(found) {
-        app->swd_idcode = idcode;
-        app->state = StateConfirm;
+
+    if(result == SWD_ACK_OK) {
+        /* Confirm live target by reading DHCSR */
+        swd_halt();
+        uint32_t dhcsr = 0;
+        SWDAck rd = swd_read32(0xE000EDF0UL, &dhcsr);
+        if(rd == SWD_ACK_OK) {
+            app->swd_idcode = 0x0BB11477UL; /* Cortex-M0 DP IDCODE */
+            app->state = StateConfirm;
+        } else {
+            snprintf(
+                app->error_msg,
+                sizeof(app->error_msg),
+                "SWD up, DHCSR fail\nACK=0x%02X\nWrong target?",
+                (unsigned)rd);
+            app->state = StateError;
+            swd_disconnect();
+        }
     } else {
         snprintf(
             app->error_msg,
             sizeof(app->error_msg),
-            "No SWD target found.\nCheck cable & vape\npower, then retry.");
+            "SWD fail ACK=0x%02X\nFlip USB-C, check\nvape is powered on",
+            (unsigned)result);
         app->state = StateError;
     }
+
     furi_mutex_release(app->mutex);
     view_port_update(wctx->vp);
 
