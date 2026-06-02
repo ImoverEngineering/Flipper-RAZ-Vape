@@ -6,7 +6,7 @@
  *
  * Pin wiring (Flipper GPIO header → USB-C plug on vape):
  *   Flipper PA7  (GPIO header pin 11)  →  SWDIO  →  USB-C CC1
- *   Flipper PA6  (GPIO header pin 10)  →  SWCLK  →  USB-C CC2
+ *   Flipper PA6  (GPIO header pin  9)  →  SWCLK  →  USB-C CC2
  *   Flipper GND  (GPIO header GND)     →  GND    →  USB-C GND shell
  *
  * The vape is self-powered; USB-C carries only the CC/SWD signals.

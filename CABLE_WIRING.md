@@ -51,7 +51,7 @@ Only three pins matter. Leave everything else unconnected.
 | USB-C Pin | Signal | Function | Connect to |
 |-----------|--------|----------|------------|
 | A5 | CC1 | SWDIO | Flipper Pin 11 (PA7) |
-| B5 | CC2 | SWCLK | Flipper Pin 10 (PA6) |
+| B5 | CC2 | SWCLK | Flipper Pin  9 (PA6) |
 | A1 / A12 / B1 / B12 | GND | Ground | Flipper GND (Pin 8 or 18) |
 | All others | — | Leave unconnected | — |
 
@@ -65,7 +65,7 @@ Only three pins matter. Leave everything else unconnected.
 | USB-C Pin | Signal | Flipper GPIO Pin | Flipper Label |
 |-----------|--------|-----------------|---------------|
 | A5 (CC1) | SWDIO | Pin 11 | PA7 |
-| B5 (CC2) | SWCLK | Pin 10 | PA6 |
+| B5 (CC2) | SWCLK | Pin  9 | PA6 |
 | GND | GND | Pin 8 or 18 | GND |
 
 ---
@@ -113,20 +113,16 @@ Pins to connect:
 
 ---
 
-## Orientation Warning
+## Orientation
 
 > **The USB-C connector is orientation-sensitive for SWD.**
 >
-> USB-C is physically reversible, but the CC pins swap sides when the plug is flipped:
-> inserting it upside-down puts CC2 where CC1 should be, which breaks SWD.
+> USB-C is physically reversible, but CC1 and CC2 swap sides when the plug is flipped.
+> The correct orientation has been confirmed on production hardware via ST-Link:
+> **CC1 = SWDIO (PA7, pin 11)** and **CC2 = SWCLK (PA6, pin 9)**.
 >
-> **If the app shows "SWD connect failed":**
-> 1. Unplug the USB-C connector from the vape.
-> 2. Flip it 180°.
-> 3. Plug it back in and retry.
->
-> To avoid guessing every time, mark the correct orientation on the cable plug with a small dot
-> of nail polish or a permanent marker after you find the working side.
+> There is only one correct orientation. If the connection fails, flip the plug 180° and retry.
+> Once you find the working side, mark it with a small dot of nail polish or a permanent marker.
 
 ---
 
@@ -157,7 +153,7 @@ skip the USB-C cable entirely and connect pogo pins directly to the SWD pads:
 | MCU pad | Signal | Flipper GPIO |
 |---------|--------|-------------|
 | PA13 | SWDIO | Pin 11 (PA7) |
-| PA14 | SWCLK | Pin 10 (PA6) |
+| PA14 | SWCLK | Pin  9 (PA6) |
 | GND | GND | Pin 8 or 18 |
 
 This requires partially disassembling the vape to expose the PCB, but gives a more reliable

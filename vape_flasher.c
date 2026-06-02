@@ -5,8 +5,8 @@
  * inside a RAZ DC25000 disposable vape via bit-banged ARM SWD on GPIO pins.
  *
  * Wiring (Flipper GPIO → USB-C cable → vape CC lines):
- *   Flipper PA7  (GPIO pin 11) → SWDIO → USB-C CC1
- *   Flipper PA6  (GPIO pin 10) → SWCLK → USB-C CC2
+ *   Flipper PA7  (GPIO pin 11) → CC1 → SWDIO
+ *   Flipper PA6  (GPIO pin  9) → CC2 → SWCLK
  *   Flipper GND                → GND   → USB-C GND shell
  *
  * The vape is self-powered; USB-C carries only SWD signals and GND.
@@ -49,6 +49,7 @@
 
 typedef enum {
     StateDisclaimer,  /**< Safety warning; user must hold OK for 3 s          */
+    StateWiring,      /**< Show fixed wiring diagram; OK to continue           */
     StateFilePick,    /**< Blocking file browser dialog                        */
     StateConnecting,  /**< SWD connect attempt (runs in worker thread)         */
     StateConfirm,     /**< Show filename + size; ask user to confirm           */
@@ -275,6 +276,33 @@ static void draw_disclaimer(Canvas* canvas, AppCtx* app) {
     }
 }
 
+static void draw_wiring(Canvas* canvas) {
+    /* Inverted title bar */
+    canvas_draw_box(canvas, 0, 0, 128, 13);
+    canvas_invert_color(canvas);
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str_aligned(canvas, 64, 10, AlignCenter, AlignBottom, "WIRING");
+    canvas_invert_color(canvas);
+
+    /*
+     * Fixed wiring — confirmed via ST-Link on production hardware:
+     *   CC1 = SWDIO,  CC2 = SWCLK
+     *
+     * Flipper GPIO header → USB-C breakout → Vape
+     *
+     * Display is 128×64.  FontSecondary ≈ 6 px/char, row height ≈ 10 px.
+     */
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str(canvas, 2, 23, "Flipper    USB-C   Signal");
+    /* Separator */
+    canvas_draw_line(canvas, 2, 25, 126, 25);
+    canvas_draw_str(canvas, 2, 34, "PA7 pin11  CC1     SWDIO");
+    canvas_draw_str(canvas, 2, 44, "PA6 pin 9  CC2     SWCLK");
+    canvas_draw_str(canvas, 2, 54, "GND        GND shell");
+
+    canvas_draw_str(canvas, 2, 63, "[OK] Next   [Back] Back");
+}
+
 static void draw_connecting(Canvas* canvas) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 4, 12, "Vape Flasher");
@@ -407,6 +435,9 @@ static void draw_cb(Canvas* canvas, void* raw_ctx) {
     switch(state) {
     case StateDisclaimer:
         draw_disclaimer(canvas, app);
+        break;
+    case StateWiring:
+        draw_wiring(canvas);
         break;
     case StateFilePick:
         /* Show a simple "loading" screen while the blocking dialog runs. */
@@ -584,10 +615,8 @@ int32_t vape_flasher_app(void* p) {
 
             furi_mutex_acquire(app->mutex, FuriWaitForever);
             if(!selected) {
-                /* User pressed back in the file browser — return to disclaimer */
-                app->state = StateDisclaimer;
-                app->disclaimer_hold_ticks = 0;
-                app->ok_held = false;
+                /* User pressed back in the file browser — return to wiring screen */
+                app->state = StateWiring;
             } else {
                 /* Load the firmware file, then move to connecting */
                 bool file_ok = load_firmware_file(app, furi_string_get_cstr(app->file_path));
@@ -631,8 +660,21 @@ int32_t vape_flasher_app(void* p) {
             if(app->ok_held) {
                 app->disclaimer_hold_ticks++;
                 if(app->disclaimer_hold_ticks >= DISCLAIMER_HOLD_FRAMES) {
-                    app->state = StateFilePick;
+                    app->state = StateWiring;
                     app->ok_held = false;
+                    app->disclaimer_hold_ticks = 0;
+                }
+            }
+            break;
+
+        /* -------------------------------------------------------------- */
+        case StateWiring:
+            if(got_event &&
+               (event.type == InputTypeShort || event.type == InputTypePress)) {
+                if(event.key == InputKeyOk) {
+                    app->state = StateFilePick;
+                } else if(event.key == InputKeyBack) {
+                    app->state = StateDisclaimer;
                     app->disclaimer_hold_ticks = 0;
                 }
             }
