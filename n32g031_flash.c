@@ -20,6 +20,11 @@
  * Lock on error: the flash controller is locked (best-effort) even when an
  * intermediate step fails, to leave the target in a safe state.
  *
+ * Note on naming: all macros describing the N32G031 flash controller use the
+ * N32_ prefix to avoid collisions with STM32WB CMSIS definitions (which
+ * define their own FLASH_BASE, FLASH_KEY1, FLASH_KEY2, etc.) pulled in
+ * transitively through furi_hal.h.
+ *
  * Author: generated for the Flipper Zero RAZ DC25000 vape-reflash project.
  */
 
@@ -31,46 +36,46 @@
 #include <string.h>
 
 /* ============================================================================
- * Flash controller register addresses
+ * Flash controller register addresses  (N32G031 peripheral space)
  * ========================================================================= */
 
-#define FLASH_BASE    0x40022000UL
-#define FLASH_AC      (FLASH_BASE + 0x00U)  /* Access control (wait states)      */
-#define FLASH_KEY     (FLASH_BASE + 0x04U)  /* Unlock key register               */
-#define FLASH_OPTKEY  (FLASH_BASE + 0x08U)  /* Option byte unlock key            */
-#define FLASH_STS     (FLASH_BASE + 0x0CU)  /* Status register                   */
-#define FLASH_CTRL    (FLASH_BASE + 0x10U)  /* Control register                  */
-#define FLASH_ADD     (FLASH_BASE + 0x14U)  /* Page-erase address register       */
+#define N32_FLASH_BASE    0x40022000UL
+#define N32_FLASH_AC      (N32_FLASH_BASE + 0x00U)  /* Access control (wait states)  */
+#define N32_FLASH_KEY     (N32_FLASH_BASE + 0x04U)  /* Unlock key register           */
+#define N32_FLASH_OPTKEY  (N32_FLASH_BASE + 0x08U)  /* Option byte unlock key        */
+#define N32_FLASH_STS     (N32_FLASH_BASE + 0x0CU)  /* Status register               */
+#define N32_FLASH_CTRL    (N32_FLASH_BASE + 0x10U)  /* Control register              */
+#define N32_FLASH_ADD     (N32_FLASH_BASE + 0x14U)  /* Page-erase address register   */
 
-/* FLASH_CTRL bits */
-#define FLASH_CTRL_PG    (1UL << 0)  /* Program enable                           */
-#define FLASH_CTRL_PER   (1UL << 1)  /* Page erase                               */
-#define FLASH_CTRL_MER   (1UL << 2)  /* Mass erase                               */
-#define FLASH_CTRL_STRT  (1UL << 6)  /* Start (trigger erase)                    */
-#define FLASH_CTRL_LOCK  (1UL << 7)  /* Lock bit (1 = locked; clear via keys)    */
+/* N32_FLASH_CTRL bits */
+#define N32_CTRL_PG    (1UL << 0)  /* Program enable                               */
+#define N32_CTRL_PER   (1UL << 1)  /* Page erase                                   */
+#define N32_CTRL_MER   (1UL << 2)  /* Mass erase                                   */
+#define N32_CTRL_STRT  (1UL << 6)  /* Start (trigger erase)                        */
+#define N32_CTRL_LOCK  (1UL << 7)  /* Lock bit (1 = locked; clear via keys)        */
 
-/* FLASH_STS bits */
-#define FLASH_STS_BSY    (1UL << 0)  /* Controller busy                          */
-#define FLASH_STS_PGERR  (1UL << 2)  /* Program error                            */
-#define FLASH_STS_WRPERR (1UL << 4)  /* Write-protection error                   */
-#define FLASH_STS_EOP    (1UL << 5)  /* End of operation (write 1 to clear)      */
+/* N32_FLASH_STS bits */
+#define N32_STS_BSY    (1UL << 0)  /* Controller busy                              */
+#define N32_STS_PGERR  (1UL << 2)  /* Program error                                */
+#define N32_STS_WRPERR (1UL << 4)  /* Write-protection error                       */
+#define N32_STS_EOP    (1UL << 5)  /* End of operation (write 1 to clear)          */
 
 /* Unlock key sequence */
-#define FLASH_KEY1  0x45670123UL
-#define FLASH_KEY2  0xCDEF89ABUL
+#define N32_KEY1  0x45670123UL
+#define N32_KEY2  0xCDEF89ABUL
 
 /* ============================================================================
  * Flash geometry
  * ========================================================================= */
 
-#define FLASH_ORIGIN      0x08000000UL   /* First byte of flash in address space  */
-#define FLASH_PAGE_SIZE   1024U          /* 1 KB per page                         */
-#define FLASH_TOTAL_PAGES 64U            /* 64 pages = 64 KB                      */
+#define N32_FLASH_ORIGIN      0x08000000UL   /* First byte of flash in target space  */
+#define N32_PAGE_SIZE         1024U          /* 1 KB per page                        */
+#define N32_TOTAL_PAGES       64U            /* 64 pages = 64 KB                     */
 
 /* NV region: pages 60-63 are reserved and must not be erased/written */
-#define FLASH_NV_FIRST_PAGE 60U          /* First NV page (inclusive)             */
-#define FLASH_MAX_USER_PAGES 60U         /* Pages 0-59 are user-writable          */
-#define FLASH_MAX_BYTES      (FLASH_MAX_USER_PAGES * FLASH_PAGE_SIZE) /* 61440    */
+#define N32_NV_FIRST_PAGE    60U             /* First NV page (inclusive)            */
+#define N32_MAX_USER_PAGES   60U             /* Pages 0-59 are user-writable         */
+#define N32_MAX_BYTES        (N32_MAX_USER_PAGES * N32_PAGE_SIZE) /* 61440           */
 
 /* ============================================================================
  * Polling timeouts
@@ -120,7 +125,7 @@ static inline FlashResult flash_read32(uint32_t addr, uint32_t* out) {
 }
 
 /**
- * flash_poll_bsy() — spin until FLASH_STS_BSY clears or timeout expires.
+ * flash_poll_bsy() — spin until N32_FLASH_STS BSY clears or timeout expires.
  *
  * @param max_iters  Maximum number of 100-µs polling iterations.
  * @return FLASH_OK, FLASH_ERR_TIMEOUT, or FLASH_ERR_SWD.
@@ -128,9 +133,9 @@ static inline FlashResult flash_read32(uint32_t addr, uint32_t* out) {
 static FlashResult flash_poll_bsy(uint32_t max_iters) {
     for(uint32_t i = 0; i < max_iters; i++) {
         uint32_t sts = 0;
-        FlashResult r = flash_read32(FLASH_STS, &sts);
+        FlashResult r = flash_read32(N32_FLASH_STS, &sts);
         if(r != FLASH_OK) return FLASH_ERR_SWD;
-        if(!(sts & FLASH_STS_BSY)) return FLASH_OK;
+        if(!(sts & N32_STS_BSY)) return FLASH_OK;
         furi_delay_us(POLL_DELAY_US);
     }
     return FLASH_ERR_TIMEOUT;
@@ -146,29 +151,29 @@ static FlashResult flash_poll_bsy(uint32_t max_iters) {
  */
 static FlashResult flash_check_errors(FlashResult err_code) {
     uint32_t sts = 0;
-    FlashResult r = flash_read32(FLASH_STS, &sts);
+    FlashResult r = flash_read32(N32_FLASH_STS, &sts);
     if(r != FLASH_OK) return FLASH_ERR_SWD;
 
-    if(sts & FLASH_STS_WRPERR) return FLASH_ERR_PROTECTED;
-    if(sts & FLASH_STS_PGERR)  return err_code;
+    if(sts & N32_STS_WRPERR) return FLASH_ERR_PROTECTED;
+    if(sts & N32_STS_PGERR)  return err_code;
     return FLASH_OK;
 }
 
 /**
- * flash_clear_eop() — write 1 to FLASH_STS_EOP to acknowledge end-of-op.
+ * flash_clear_eop() — write 1 to N32_STS_EOP to acknowledge end-of-op.
  *
  * This is a write-1-to-clear bit; writing EOP does not disturb other bits
  * because PGERR/WRPERR are also write-1-to-clear and we write only EOP.
  */
 static FlashResult flash_clear_eop(void) {
-    return flash_write32(FLASH_STS, FLASH_STS_EOP);
+    return flash_write32(N32_FLASH_STS, N32_STS_EOP);
 }
 
 /**
  * flash_unlock() — perform the two-key unlock sequence.
  *
- * After writing both keys, reads back FLASH_CTRL to verify the LOCK bit is
- * clear.  Returns FLASH_ERR_UNLOCK if CTRL cannot be read or LOCK is still
+ * After writing both keys, reads back N32_FLASH_CTRL to verify the LOCK bit
+ * is clear.  Returns FLASH_ERR_UNLOCK if CTRL cannot be read or LOCK is still
  * set (e.g. wrong key order, or controller already in an error state).
  *
  * @return FLASH_OK on success.
@@ -176,17 +181,17 @@ static FlashResult flash_clear_eop(void) {
 static FlashResult flash_unlock(void) {
     FlashResult r;
 
-    r = flash_write32(FLASH_KEY, FLASH_KEY1);
+    r = flash_write32(N32_FLASH_KEY, N32_KEY1);
     if(r != FLASH_OK) return FLASH_ERR_UNLOCK;
 
-    r = flash_write32(FLASH_KEY, FLASH_KEY2);
+    r = flash_write32(N32_FLASH_KEY, N32_KEY2);
     if(r != FLASH_OK) return FLASH_ERR_UNLOCK;
 
     /* Verify LOCK bit cleared */
     uint32_t ctrl = 0;
-    r = flash_read32(FLASH_CTRL, &ctrl);
+    r = flash_read32(N32_FLASH_CTRL, &ctrl);
     if(r != FLASH_OK) return FLASH_ERR_UNLOCK;
-    if(ctrl & FLASH_CTRL_LOCK) return FLASH_ERR_UNLOCK;
+    if(ctrl & N32_CTRL_LOCK) return FLASH_ERR_UNLOCK;
 
     return FLASH_OK;
 }
@@ -200,11 +205,11 @@ static FlashResult flash_unlock(void) {
  */
 static FlashResult flash_lock(void) {
     uint32_t ctrl = 0;
-    FlashResult r = flash_read32(FLASH_CTRL, &ctrl);
+    FlashResult r = flash_read32(N32_FLASH_CTRL, &ctrl);
     if(r != FLASH_OK) return FLASH_ERR_SWD;
 
-    ctrl |= FLASH_CTRL_LOCK;
-    return flash_write32(FLASH_CTRL, ctrl);
+    ctrl |= N32_CTRL_LOCK;
+    return flash_write32(N32_FLASH_CTRL, ctrl);
 }
 
 /**
@@ -218,24 +223,24 @@ static FlashResult flash_lock(void) {
  *   5. Clear EOP.
  *   6. Check PGERR / WRPERR.
  *
- * @param page_index  0-based page number; must be < FLASH_NV_FIRST_PAGE.
+ * @param page_index  0-based page number; must be < N32_NV_FIRST_PAGE.
  * @return FLASH_OK, FLASH_ERR_ERASE, FLASH_ERR_PROTECTED, FLASH_ERR_SWD,
  *         or FLASH_ERR_TIMEOUT.
  */
 static FlashResult flash_erase_page(uint32_t page_index) {
     FlashResult r;
-    uint32_t page_addr = FLASH_ORIGIN + (page_index * FLASH_PAGE_SIZE);
+    uint32_t page_addr = N32_FLASH_ORIGIN + (page_index * N32_PAGE_SIZE);
 
     /* Step 1: set PER mode */
-    r = flash_write32(FLASH_CTRL, FLASH_CTRL_PER);
+    r = flash_write32(N32_FLASH_CTRL, N32_CTRL_PER);
     if(r != FLASH_OK) return r;
 
     /* Step 2: write the page address to ADD */
-    r = flash_write32(FLASH_ADD, page_addr);
+    r = flash_write32(N32_FLASH_ADD, page_addr);
     if(r != FLASH_OK) return r;
 
     /* Step 3: trigger erase */
-    r = flash_write32(FLASH_CTRL, FLASH_CTRL_PER | FLASH_CTRL_STRT);
+    r = flash_write32(N32_FLASH_CTRL, N32_CTRL_PER | N32_CTRL_STRT);
     if(r != FLASH_OK) return r;
 
     /* Step 4: poll busy */
@@ -269,7 +274,7 @@ static FlashResult flash_write_word(uint32_t flash_addr, uint32_t word) {
     FlashResult r;
 
     /* Step 1: set PG mode */
-    r = flash_write32(FLASH_CTRL, FLASH_CTRL_PG);
+    r = flash_write32(N32_FLASH_CTRL, N32_CTRL_PG);
     if(r != FLASH_OK) return r;
 
     /* Step 2: write word directly to flash address */
@@ -317,16 +322,16 @@ FlashResult n32_flash_program(
     /* ------------------------------------------------------------------
      * Parameter validation
      * ------------------------------------------------------------------ */
-    if(len == 0 || len > FLASH_MAX_BYTES) {
+    if(len == 0 || len > N32_MAX_BYTES) {
         return FLASH_ERR_SIZE;
     }
 
     /* Number of pages that need to be erased to cover 'len' bytes */
-    uint32_t pages_needed = (len + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE;
+    uint32_t pages_needed = (len + N32_PAGE_SIZE - 1) / N32_PAGE_SIZE;
     /* Clamp to the writable region — the size check above already ensures
-     * pages_needed <= FLASH_MAX_USER_PAGES, but be explicit. */
-    if(pages_needed > FLASH_MAX_USER_PAGES) {
-        pages_needed = FLASH_MAX_USER_PAGES;
+     * pages_needed <= N32_MAX_USER_PAGES, but be explicit. */
+    if(pages_needed > N32_MAX_USER_PAGES) {
+        pages_needed = N32_MAX_USER_PAGES;
     }
 
     /* Number of 32-bit words to write (ceiling division).
@@ -346,7 +351,7 @@ FlashResult n32_flash_program(
     /* ------------------------------------------------------------------
      * Step 2: Page erase (pages 0 .. pages_needed-1)
      * ------------------------------------------------------------------ */
-    uint32_t erase_total = pages_needed * FLASH_PAGE_SIZE;
+    uint32_t erase_total = pages_needed * N32_PAGE_SIZE;
 
     for(uint32_t page = 0; page < pages_needed; page++) {
         r = flash_erase_page(page);
@@ -355,14 +360,14 @@ FlashResult n32_flash_program(
             return r;
         }
         report_progress(cb, cb_ctx, "Erasing",
-                        (page + 1U) * FLASH_PAGE_SIZE,
+                        (page + 1U) * N32_PAGE_SIZE,
                         erase_total);
     }
 
     /* ------------------------------------------------------------------
      * Step 3: Program words
      * ------------------------------------------------------------------ */
-    uint32_t progress_cb_threshold = FLASH_PAGE_SIZE; /* report every 1 KB */
+    uint32_t progress_cb_threshold = N32_PAGE_SIZE; /* report every 1 KB */
     uint32_t bytes_since_last_cb   = 0;
 
     for(uint32_t i = 0; i < words_to_write; i++) {
@@ -377,7 +382,7 @@ FlashResult n32_flash_program(
         memcpy(&word, data + byte_offset, copy_bytes);
         /* Any remaining bytes in 'word' are already 0 (zero-initialised) */
 
-        uint32_t flash_addr = FLASH_ORIGIN + byte_offset;
+        uint32_t flash_addr = N32_FLASH_ORIGIN + byte_offset;
         r = flash_write_word(flash_addr, word);
         if(r != FLASH_OK) {
             flash_lock();  /* best-effort */
@@ -396,7 +401,7 @@ FlashResult n32_flash_program(
     report_progress(cb, cb_ctx, "Flashing", prog_total, prog_total);
 
     /* Clear PG mode before verify reads */
-    r = flash_write32(FLASH_CTRL, 0UL);
+    r = flash_write32(N32_FLASH_CTRL, 0UL);
     if(r != FLASH_OK) {
         flash_lock();
         return r;
@@ -416,7 +421,7 @@ FlashResult n32_flash_program(
         uint32_t copy_bytes = (bytes_left >= 4U) ? 4U : bytes_left;
         memcpy(&expected, data + byte_offset, copy_bytes);
 
-        uint32_t flash_addr = FLASH_ORIGIN + byte_offset;
+        uint32_t flash_addr = N32_FLASH_ORIGIN + byte_offset;
         uint32_t actual     = 0;
         r = flash_read32(flash_addr, &actual);
         if(r != FLASH_OK) {
