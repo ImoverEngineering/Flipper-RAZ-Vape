@@ -29,11 +29,16 @@ jobs:
       - name: Build FAP
         run: ufbt build
 
+      - name: Stage FAP for upload
+        run: |
+          mkdir -p dist
+          find ~/.ufbt/build -name "*.fap" -exec cp {} dist/ \;
+
       - name: Upload FAP artifact
         uses: actions/upload-artifact@v4
         with:
           name: vape_flasher-fap
-          path: dist/**/*.fap
+          path: dist/*.fap
           if-no-files-found: error
 
   # ── Build Vaporware firmware binaries ────────────────────────────────────
