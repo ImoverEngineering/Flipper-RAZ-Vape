@@ -57,7 +57,7 @@ firmware/flappy.bin: firmware/flappy.elf
 flappy: firmware/flappy.bin
 
 # ── slots ─────────────────────────────────────────────────────────────────────
-firmware/slots.elf: $(VAPORWARE_SRC) vaporware/examples/slots/src/slots.c
+firmware/slots.elf: $(VAPORWARE_SRC) vaporware/examples/slots/src/slots.c vaporware/examples/slots/src/main.c
 	$(CC) $(CFLAGS) -Ivaporware/examples/slots/include $(LDFLAGS_BASE) -Wl,-Map,$(@:.elf=.map) $^ -o $@
 	$(SIZE) $@
 
