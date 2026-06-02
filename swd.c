@@ -90,14 +90,20 @@ static inline void dio_low(void) {
     furi_hal_gpio_write(SWD_SWDIO, false);
 }
 
-/** Switch SWDIO to output push-pull. */
+/** Switch SWDIO to output push-pull, very-high speed. */
 static inline void dio_output(void) {
-    furi_hal_gpio_init_simple(SWD_SWDIO, GpioModeOutputPushPull);
+    furi_hal_gpio_init(SWD_SWDIO, GpioModeOutputPushPull, GpioPullNo, GpioSpeedVeryHigh);
 }
 
-/** Switch SWDIO to input (high-impedance). */
+/**
+ * Switch SWDIO to input with pull-up.
+ *
+ * ARM SWD requires SWDIO to be pulled high during turnaround cycles and
+ * whenever the host is not driving the line.  Without the pull-up the pin
+ * floats, ACK bits read as garbage, and swd_connect() always fails.
+ */
 static inline void dio_input(void) {
-    furi_hal_gpio_init_simple(SWD_SWDIO, GpioModeInput);
+    furi_hal_gpio_init(SWD_SWDIO, GpioModeInput, GpioPullUp, GpioSpeedVeryHigh);
 }
 
 /** Read SWDIO (input mode must already be set). */
@@ -496,10 +502,10 @@ static void swd_idle_cycles(uint8_t n) {
  * ======================================================================== */
 
 SWDAck swd_connect(void) {
-    /* Initialise both pins; start with CLK low, SWDIO high-impedance. */
-    furi_hal_gpio_init_simple(SWD_SWCLK, GpioModeOutputPushPull);
+    /* Initialise both pins at very-high speed; CLK starts low, SWDIO high. */
+    furi_hal_gpio_init(SWD_SWCLK, GpioModeOutputPushPull, GpioPullNo, GpioSpeedVeryHigh);
     furi_hal_gpio_write(SWD_SWCLK, false);
-    furi_hal_gpio_init_simple(SWD_SWDIO, GpioModeOutputPushPull);
+    furi_hal_gpio_init(SWD_SWDIO, GpioModeOutputPushPull, GpioPullNo, GpioSpeedVeryHigh);
     furi_hal_gpio_write(SWD_SWDIO, true);
 
     SWDAck result = SWD_ERR_NO_TARGET;
@@ -567,9 +573,9 @@ SWDAck swd_connect(void) {
 }
 
 void swd_disconnect(void) {
-    /* Float both pins back to input (high-impedance) */
-    furi_hal_gpio_init_simple(SWD_SWDIO, GpioModeInput);
-    furi_hal_gpio_init_simple(SWD_SWCLK, GpioModeInput);
+    /* Return both pins to floating input — no pull, low speed */
+    furi_hal_gpio_init(SWD_SWDIO, GpioModeInput, GpioPullNo, GpioSpeedLow);
+    furi_hal_gpio_init(SWD_SWCLK, GpioModeInput, GpioPullNo, GpioSpeedLow);
 }
 
 SWDAck swd_read32(uint32_t addr, uint32_t* out) {
