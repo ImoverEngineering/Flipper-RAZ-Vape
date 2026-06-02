@@ -563,7 +563,15 @@ int32_t vape_flasher_app(void* p) {
     app->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     app->queue = furi_message_queue_alloc(8, sizeof(InputEvent));
     app->file_path = furi_string_alloc();
-    furi_string_set(app->file_path, STORAGE_APP_DATA_PATH_PREFIX);
+    /*
+     * Start the file browser at the SD card root so the user can navigate to
+     * wherever they placed their .bin files.  After the first selection,
+     * app->file_path holds the full file path and the browser reopens with
+     * that file already highlighted — avoiding the Flipper quirk where
+     * entering a bare directory path fails to apply the extension filter on
+     * the first render (requiring a back-out/re-enter to see files).
+     */
+    furi_string_set(app->file_path, STORAGE_EXT_PATH_PREFIX);
 
     /* ---- Allocate ViewPort ---- */
     ViewPort* vp = view_port_alloc();
