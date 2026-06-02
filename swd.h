@@ -26,7 +26,7 @@ extern "C" {
 /* ---------------------------------------------------------------------------
  * SWD pin definitions
  * ------------------------------------------------------------------------- */
-#include <furi_hal_gpio.h>
+#include <furi_hal.h>
 
 #define SWD_SWDIO (&gpio_ext_pa7)
 #define SWD_SWCLK (&gpio_ext_pa6)

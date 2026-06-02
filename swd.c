@@ -24,7 +24,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <furi_hal_gpio.h>
+#include <furi_hal.h>
 #include <furi.h>
 
 /* ---------------------------------------------------------------------------
