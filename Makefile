@@ -17,17 +17,17 @@ CFLAGS := \
     -mthumb \
     -Os \
     -Wall \
-    -Wextra \
     -ffunction-sections \
     -fdata-sections \
     -fno-common \
+    -Wno-misleading-indentation \
+    -Wno-unused-function \
     -Ivaporware/src/include
 
-LDFLAGS := \
+LDFLAGS_BASE := \
     -mcpu=cortex-m0 \
     -mthumb \
     -Wl,--gc-sections \
-    -Wl,-Map,$(@:.bin=.map) \
     -T vaporware/src/n32g031.ld \
     -nostartfiles
 
@@ -46,7 +46,7 @@ $(shell mkdir -p firmware)
 
 # ── flappy ────────────────────────────────────────────────────────────────────
 firmware/flappy.elf: $(VAPORWARE_SRC) vaporware/examples/flappy/src/flappy.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS_BASE) -Wl,-Map,$(@:.elf=.map) $^ -o $@
 	$(SIZE) $@
 
 firmware/flappy.bin: firmware/flappy.elf
@@ -58,7 +58,7 @@ flappy: firmware/flappy.bin
 
 # ── slots ─────────────────────────────────────────────────────────────────────
 firmware/slots.elf: $(VAPORWARE_SRC) vaporware/examples/slots/src/slots.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) -Ivaporware/examples/slots/include $(LDFLAGS_BASE) -Wl,-Map,$(@:.elf=.map) $^ -o $@
 	$(SIZE) $@
 
 firmware/slots.bin: firmware/slots.elf
@@ -70,7 +70,7 @@ slots: firmware/slots.bin
 
 # ── template ──────────────────────────────────────────────────────────────────
 firmware/template.elf: $(VAPORWARE_SRC) vaporware/examples/template/src/main.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS_BASE) -Wl,-Map,$(@:.elf=.map) $^ -o $@
 	$(SIZE) $@
 
 firmware/template.bin: firmware/template.elf

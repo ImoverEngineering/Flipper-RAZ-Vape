@@ -10,4 +10,6 @@ App(
     fap_description="Flash RAZ DC25000 vape firmware via SWD over USB-C",
     fap_author="Vaporware Project",
     fap_weburl="https://github.com/ImoverEngineering/Flipper-RAZ-Vape",
+    # Explicitly list sources so ufbt doesn't recurse into the vaporware submodule
+    sources=["vape_flasher.c", "swd.c", "n32g031_flash.c"],
 )
