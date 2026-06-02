@@ -1,0 +1,111 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Build the Flipper FAP ──────────────────────────────────────────────────
+  build-fap:
+    name: Build FAP (Flipper Zero app)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ufbt
+        run: pip install ufbt
+
+      - name: Build FAP
+        run: ufbt build
+
+      - name: Upload FAP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vape_flasher-fap
+          path: dist/**/*.fap
+          if-no-files-found: error
+
+  # ── Build Vaporware firmware binaries ────────────────────────────────────
+  build-firmware:
+    name: Build firmware binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install arm-none-eabi toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi
+
+      - name: Build all examples
+        run: make all
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vaporware-firmware
+          path: firmware/*.bin
+          if-no-files-found: error
+
+  # ── Create GitHub release on tag push ─────────────────────────────────────
+  release:
+    name: Create Release
+    needs: [build-fap, build-firmware]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download FAP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vape_flasher-fap
+          path: release-assets/
+
+      - name: Download firmware artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: vaporware-firmware
+          path: release-assets/
+
+      - name: List release assets
+        run: ls -lh release-assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/**
+          body: |
+            ## Flipper-RAZ-Vape ${{ github.ref_name }}
+
+            ### Installation
+            1. Copy `vape_flasher.fap` to `SD:/apps/Tools/` on your Flipper
+            2. Copy the `.bin` firmware file(s) you want to flash to `SD:/apps/data/vape_flasher/` (or any location — the app has a file browser)
+            3. Connect your USB-C SWD cable (see [CABLE_WIRING.md](CABLE_WIRING.md))
+            4. Power on the vape, open **Vape Flasher** on the Flipper
+
+            ### Included firmware
+            | File | Description |
+            |------|-------------|
+            | `flappy.bin` | Flappy Bird |
+            | `slots.bin` | Slot machine with NV high score |
+            | `template.bin` | Blank app skeleton |
+
+            ### ⚠️ Disclaimer
+            You assume ALL risk. Incorrect firmware can damage the battery or cause fire.
+          generate_release_notes: true
+          fail_on_unmatched_files: true

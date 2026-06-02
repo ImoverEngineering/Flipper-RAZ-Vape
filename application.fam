@@ -1,0 +1,13 @@
+App(
+    appid="vape_flasher",
+    name="Vape Flasher",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="vape_flasher_app",
+    requires=["gui", "storage", "dialogs"],
+    stack_size=4 * 1024,
+    fap_category="Tools",
+    fap_version=(1, 0),
+    fap_description="Flash RAZ DC25000 vape firmware via SWD over USB-C",
+    fap_author="Vaporware Project",
+    fap_weburl="https://github.com/ImoverEngineering/Flipper-RAZ-Vape",
+)
